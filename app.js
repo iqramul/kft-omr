@@ -146,7 +146,7 @@
     const n = e.keys[store.activeSet].slice(0, e.numQ).filter(Boolean).length;
     $('#scan-subject').textContent = `${e.subject || '(নাম নেই)'} · সেট ${store.activeSet}`;
     if (n === 0) setHint(`সেট ${store.activeSet} এর উত্তর সেট করা নেই — সেটআপে গিয়ে দিন`);
-    else setHint(`শিটের ৪ কোণার ছোট চারকোনা বক্স ফ্রেমে রাখুন`);
+    else setHint(`পুরো শিট ফ্রেমে ধরুন — ৪ কোণার ছোট কালো বক্স যেন দেখা যায়`);
   }
   function setHint(t) { $('#scan-hint').textContent = t; }
   function setStatus(t, cls) { const c = $('#status-chip'); c.textContent = t; c.className = 'status-chip' + (cls ? ' ' + cls : ''); }
@@ -208,15 +208,13 @@
     processFrame(img, true);
   }
 
-  // live: only look for the sheet; freeze as soon as it is found and held steady.
-  let steady = 0, prevCorners = null, accum = null;
+  // live: only look for the sheet; freeze instantly on the first frame where it is found.
   function processFrame(img, live) {
     const { width: w, height: h } = img;
     const g = OMR.toGray(img);
     const sheet = OMR.detectSheet(g, w, h);
     if (!sheet) {
       if (live) {
-        steady = 0; prevCorners = null; accum = null;
         setStatus('শিট খোঁজা হচ্ছে…', '');
         $('#frame-guide').classList.remove('hide');
       } else {
@@ -230,25 +228,9 @@
     const fq = raw.q.map(r => r.map(b => b.fill)), fid = raw.id.map(c => c.map(b => b.fill));
 
     if (live) {
-      // how much did the sheet move since the previous frame?
-      const size = Math.hypot(sheet.corners[0][0] - sheet.corners[2][0], sheet.corners[0][1] - sheet.corners[2][1]);
-      const moved = prevCorners ? Math.max(...sheet.corners.map((p, i) => Math.hypot(p[0] - prevCorners[i][0], p[1] - prevCorners[i][1]))) / size : 1;
-      prevCorners = sheet.corners;
-      if (moved < 0.025) steady++; else { steady = 0; accum = null; }
-      if (!accum) accum = { n: 0, q: fq.map(r => r.map(() => 0)), id: fid.map(c => c.map(() => 0)) };
-      accum.n++;
-      fq.forEach((r, i) => r.forEach((v, j) => accum.q[i][j] += v));
-      fid.forEach((c, i) => c.forEach((v, j) => accum.id[i][j] += v));
-      // outline only while live
-      ctx.save(); ctx.lineWidth = Math.max(3, w / 300); ctx.strokeStyle = '#22c55e';
-      ctx.beginPath(); sheet.corners.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.stroke(); ctx.restore();
-      setStatus('শিট পাওয়া গেছে… স্থির রাখুন', '');
-      if (steady >= 2) {
-        const n = accum.n;
-        const fills = { q: accum.q.map(r => r.map(v => v / n)), id: accum.id.map(c => c.map(v => v / n)) };
-        lastSheet = { corners: sheet.corners, geom: raw, fills };
-        autoCapture(img);
-      }
+      // sheet found -> capture this exact frame instantly
+      lastSheet = { corners: sheet.corners, geom: raw, fills: { q: fq, id: fid } };
+      autoCapture(img);
       return lastSheet;
     }
 
@@ -289,7 +271,6 @@
 
   function newCapture() {
     frozen = false; frozenImage = null; lastSheet = null;
-    steady = 0; prevCorners = null; accum = null;
     resetScore();
     $('#btn-save').disabled = true;
     $('#btn-new').textContent = '📸 এখনই ক্যাপচার';

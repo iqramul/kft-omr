@@ -35,7 +35,75 @@
         mm[y * w + x] = sum / ((x1 - x0) * (y1 - y0));
       }
     }
+    mm.ii = ii;
     return mm;
+  }
+
+  // Center-surround detector for small solid dark squares (the 4 corner markers).
+  // Works on blurry / low-contrast / small markers where plain thresholding fails.
+  const DIRS = [[1, 0], [0.7071, 0.7071], [0, 1], [-0.7071, 0.7071], [-1, 0], [-0.7071, -0.7071], [0, -1], [0.7071, -0.7071]];
+  function findMarkers(g, w, h, mm) {
+    const ii = mm.ii, W1 = w + 1;
+    const box = (x0, y0, x1, y1) => ii[y1 * W1 + x1] - ii[y0 * W1 + x1] - ii[y1 * W1 + x0] + ii[y0 * W1 + x0];
+    const long = Math.max(w, h);
+    const sizes = [];
+    for (let a = 3; a <= Math.max(6, Math.round(long / 100)); a = Math.max(a + 1, Math.round(a * 1.3))) sizes.push(a);
+    const best = new Float32Array(w * h), bestA = new Uint8Array(w * h), bestO = new Uint8Array(w * h);
+    for (const a of sizes) {
+      const hi = a >> 1, ho = Math.round(a * 1.25);   // inner half-size, outer half-size
+      const ai = (2 * hi + 1) ** 2, ao = (2 * ho + 1) ** 2 - ai;
+      for (let y = ho + 1; y < h - ho - 1; y++) {
+        for (let x = ho + 1; x < w - ho - 1; x++) {
+          if (g[y * w + x] > mm[y * w + x] * 0.88) continue; // centre not dark: skip fast
+          const si = box(x - hi, y - hi, x + hi + 1, y + hi + 1);
+          const inner = si / ai;
+          if (inner > 170) continue;
+          const outer = (box(x - ho, y - ho, x + ho + 1, y + ho + 1) - si) / ao;
+          if (outer < 60) continue;
+          const r = (outer - inner) / outer;
+          const p = y * w + x;
+          if (r > best[p]) { best[p] = r; bestA[p] = a; bestO[p] = outer; }
+        }
+      }
+    }
+    // local maxima + non-max suppression
+    const cand = [];
+    for (let y = 2; y < h - 2; y++) for (let x = 2; x < w - 2; x++) {
+      const p = y * w + x, r = best[p];
+      if (r < 0.2) continue;
+      if (r < best[p - 1] || r < best[p + 1] || r < best[p - w] || r < best[p + w] ||
+          r < best[p - w - 1] || r < best[p - w + 1] || r < best[p + w - 1] || r < best[p + w + 1]) continue;
+      cand.push({ x, y, r, a: bestA[p], o: bestO[p] });
+    }
+    cand.sort((p, q) => q.r - p.r);
+    const out = [];
+    for (const c of cand) {
+      if (out.some(o => Math.abs(o.x - c.x) < o.a * 1.5 && Math.abs(o.y - c.y) < o.a * 1.5)) continue;
+      // must be surrounded by paper on (almost) all sides; rejects the paper's outer edge
+      {
+        const R = Math.max(c.a * 2, c.a + 3);
+        let mx = 0; const vals = [];
+        for (let k = 0; k < 8; k++) {
+          const px = Math.round(c.x + R * DIRS[k][0]), py = Math.round(c.y + R * DIRS[k][1]);
+          const v = (px < 0 || py < 0 || px >= w || py >= h) ? 0 : g[py * w + px];
+          vals.push(v); if (v > mx) mx = v;
+        }
+        let bright = 0; for (const v of vals) if (v > mx * 0.8) bright++;
+        if (bright < 6) continue;
+      }
+      // refine centre: darkness-weighted centroid inside the box
+      const hw = c.a;
+      let sw = 0, sx = 0, sy = 0;
+      const thr = mm[c.y * w + c.x];
+      for (let yy = Math.max(0, c.y - hw); yy <= Math.min(h - 1, c.y + hw); yy++)
+        for (let xx = Math.max(0, c.x - hw); xx <= Math.min(w - 1, c.x + hw); xx++) {
+          const d = thr - g[yy * w + xx];
+          if (d > 0) { sw += d; sx += d * xx; sy += d * yy; }
+        }
+      out.push({ x: sw ? sx / sw : c.x, y: sw ? sy / sw : c.y, size: c.a, fill: c.r, bg: c.o });
+      if (out.length > 1500) break;
+    }
+    return out;
   }
 
   function findBlobs(g, w, h, k, mm) {
@@ -113,6 +181,16 @@
     hm.push(1);
     return hm;
   }
+  // closed-form unit square -> quad (P0..P3 = (0,0),(1,0),(1,1),(0,1))
+  function squareToQuad(P) {
+    const [x0, y0] = P[0], [x1, y1] = P[1], [x2, y2] = P[2], [x3, y3] = P[3];
+    const dx1 = x1 - x2, dx2 = x3 - x2, dx3 = x0 - x1 + x2 - x3;
+    const dy1 = y1 - y2, dy2 = y3 - y2, dy3 = y0 - y1 + y2 - y3;
+    const den = dx1 * dy2 - dx2 * dy1;
+    if (Math.abs(den) < 1e-9) return null;
+    const g7 = (dx3 * dy2 - dx2 * dy3) / den, h8 = (dx1 * dy3 - dx3 * dy1) / den;
+    return [x1 - x0 + g7 * x1, x3 - x0 + h8 * x3, x0, y1 - y0 + g7 * y1, y3 - y0 + h8 * y3, y0, g7, h8, 1];
+  }
   function project(H, u, v) {
     const z = H[6] * u + H[7] * v + H[8];
     return [(H[0] * u + H[1] * v + H[2]) / z, (H[3] * u + H[4] * v + H[5]) / z];
@@ -136,73 +214,115 @@
   let lastK = 0.55;
   function detectSheet(g, w, h) {
     const mm = meanMap(g, w, h);
-    const ks = [lastK].concat([0.55, 0.42, 0.68].filter(k => k !== lastK));
-    for (const k of ks) {
-      const r = detectWith(findBlobs(g, w, h, k, mm), g, w, h, mm);
-      if (r) { lastK = k; return r; }
+    // paper brightness ~ 90th percentile
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < g.length; i += 7) hist[g[i]]++;
+    let acc = 0, tot = Math.ceil(g.length / 7), p90 = 255;
+    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= tot * 0.9) { p90 = v; break; } }
+    // markers sit on white paper: drop candidates whose surroundings are much darker than paper
+    const all = findMarkers(g, w, h, mm).filter(b => b.bg >= p90 * 0.35);
+    // try the strongest candidates first, then weaker ones
+    for (const minR of [0.45, 0.3, 0]) {
+      const set = minR ? all.filter(b => b.fill >= minR) : all;
+      if (minR && set.length === all.length) continue;
+      const r0 = detectWith(set, g, w, h, mm);
+      if (r0) return r0;
     }
-    return null;
+    // fallback: plain threshold blobs (sharp, high-contrast images)
+    return detectWith(findBlobs(g, w, h, 0.55, mm), g, w, h, mm);
   }
 
   function detectWith(blobs, g, w, h, mm) {
     if (blobs.length < 4) return null;
-    const K = Math.min(7, blobs.length);
-    const pick = (fn) => blobs.slice().sort((a, b) => fn(a) - fn(b)).slice(0, K);
+    const K = Math.min(12, blobs.length);
+    const pick = (fn) => blobs.map(b => [fn(b), b]).sort((p, q) => p[0] - q[0]).slice(0, K).map(p => p[1]);
     const tl = pick(b => b.x + b.y);
     const tr = pick(b => -(b.x - b.y));
     const br = pick(b => -(b.x + b.y));
     const bl = pick(b => b.x - b.y);
+    const minDiag = Math.min(w, h) * 0.3;
+    const sz = (p, q) => p.size > q.size * 2.6 || q.size > p.size * 2.6;
+    const cr = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+    const dd = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
     let best = null;
-    for (const a of tl) for (const b of tr) for (const c of br) for (const d of bl) {
-      if (a === b || a === c || a === d || b === c || b === d || c === d) continue;
-      const P0 = [[a.x, a.y], [b.x, b.y], [c.x, c.y], [d.x, d.y]];
-      // convex & clockwise (screen coords)
-      if (cross(P0[0], P0[1], P0[2]) <= 0 || cross(P0[1], P0[2], P0[3]) <= 0 ||
-          cross(P0[2], P0[3], P0[0]) <= 0 || cross(P0[3], P0[0], P0[1]) <= 0) continue;
-      const sizes = [a.size, b.size, c.size, d.size];
-      if (Math.max(...sizes) > Math.min(...sizes) * 2.6) continue;
-      // try the 4 rotations: sheet may be upside down or sideways
-      for (let r = 0; r < 4; r++) {
-        const P = P0.slice(r).concat(P0.slice(0, r));
-        const top = dist(P[0], P[1]), bot = dist(P[3], P[2]), lef = dist(P[0], P[3]), rig = dist(P[1], P[2]);
-        if (top < Math.min(w, h) * 0.15) continue;
-        if (top / bot > 1.7 || bot / top > 1.7 || lef / rig > 1.7 || rig / lef > 1.7) continue;
-        const aspect = (lef + rig) / (top + bot); // expected ~1.39
-        if (aspect < 1.0 || aspect > 2.0) continue;
-        const expSize = ((top + bot) / 2) * 0.0092;
-        if (sizes.some(s => s < expSize * 0.35 || s > expSize * 2.6)) continue;
-        const H = homography([[0, 0], [1, 0], [1, 1], [0, 1]], P);
-        if (!H) continue;
-        const v = validate(H, g, w, h, mm, Math.max(1, expSize * 0.35));
-        if (!v) continue;
-        const score = v + (1 - Math.abs(aspect - 1.39)) * 0.1;
-        if (!best || score > best.score) best = { score, H, corners: P };
+    for (const a of tl) for (const c of br) {
+      if (a === c || sz(a, c) || dd(a, c) < minDiag) continue;
+      for (const b of tr) {
+        if (b === a || b === c || sz(a, b) || sz(b, c) || cr(a, b, c) <= 0) continue;
+        for (const d of bl) {
+          if (d === a || d === b || d === c || sz(a, d) || sz(b, d) || sz(c, d)) continue;
+          if (cr(c, d, a) <= 0 || cr(b, c, d) <= 0 || cr(d, a, b) <= 0) continue;
+          const s01 = dd(a, b), s12 = dd(b, c), s23 = dd(c, d), s30 = dd(d, a);
+          if (s01 / s23 > 1.7 || s23 / s01 > 1.7 || s12 / s30 > 1.7 || s30 / s12 > 1.7) continue;
+          const asp = (s12 + s30) / (s01 + s23);   // image-space height/width
+          const P0 = [[a.x, a.y], [b.x, b.y], [c.x, c.y], [d.x, d.y]];
+          const meanSize = (a.size + b.size + c.size + d.size) / 4;
+          // portrait in image (rotation 0 or 180) or landscape (90 / 270)
+          const rots = asp >= 1.0 && asp <= 2.0 ? [0, 2] : (1 / asp >= 1.0 && 1 / asp <= 2.0 ? [1, 3] : []);
+          for (const r of rots) {
+            const P = P0.slice(r).concat(P0.slice(0, r));
+            const sheetW = (dd2(P[0], P[1]) + dd2(P[3], P[2])) / 2;
+            const expSize = sheetW * 0.0092;
+            if (meanSize < expSize * 0.3 || meanSize > expSize * 3) continue;
+            const H = squareToQuad(P);
+            if (!H) continue;
+            if (!quickCheck(H, g, w, h, mm)) continue;
+            const v = validate(H, g, w, h, mm, Math.max(1, expSize * 0.35));
+            if (!v) continue;
+            const aspS = r % 2 ? 1 / asp : asp;
+            const score = v + (1 - Math.abs(aspS - 1.39)) * 0.1;
+            if (!best || score > best.score) best = { score, H, corners: P };
+          }
+        }
       }
     }
     return best;
   }
+  function dd2(p, q) { return Math.hypot(p[0] - q[0], p[1] - q[1]); }
 
   // checks that known dark/white spots of the printed sheet are where the homography says
+  // quick rejection with a few spread-out points before the full check
+  const QD = [0, 7, 12, 15, 17], QW = [0, 2, 4, 6, 9, 11];
+  function quickCheck(H, g, w, h, mm) {
+    let bad = 0;
+    for (const i of QD) {
+      const [x, y] = project(H, T.dark[i][0], T.dark[i][1]);
+      const xi = Math.round(x), yi = Math.round(y);
+      if (xi < 1 || yi < 1 || xi >= w - 1 || yi >= h - 1) return false;
+      const p = yi * w + xi;
+      if (g[p] > mm[p] * 0.85 && ++bad > 1) return false;
+    }
+    for (const i of QW) {
+      const [x, y] = project(H, T.white[i][0], T.white[i][1]);
+      const xi = Math.round(x), yi = Math.round(y);
+      if (xi < 1 || yi < 1 || xi >= w - 1 || yi >= h - 1) return false;
+      const p = yi * w + xi;
+      if (g[p] < mm[p] * 0.8 && ++bad > 1) return false;
+    }
+    return true;
+  }
+
   function validate(H, g, w, h, mm, pr) {
-    let dOk = 0, wOk = 0, dSum = 0, wSum = 0;
+    let dOk = 0, wOk = 0, dSum = 0, wSum = 0, dBad = 0, wBad = 0;
+    const maxBadD = Math.floor(T.dark.length * 0.25), maxBadW = Math.floor(T.white.length * 0.25);
     for (const [u, v] of T.dark) {
       const [x, y] = project(H, u, v);
       const m = sampleMean(g, w, h, x, y, pr); if (m < 0) return 0;
       const ref = mm[Math.round(y) * w + Math.round(x)];
-      if (m < ref * 0.7) dOk++;
+      if (m < ref * 0.8) dOk++; else if (++dBad > maxBadD) return 0;
       dSum += m;
     }
     for (const [u, v] of T.white) {
       const [x, y] = project(H, u, v);
       const m = sampleMean(g, w, h, x, y, pr); if (m < 0) return 0;
       const ref = mm[Math.round(y) * w + Math.round(x)];
-      if (m > ref * 0.9) wOk++;
+      if (m > ref * 0.86) wOk++; else if (++wBad > maxBadW) return 0;
       wSum += m;
     }
     const fd = dOk / T.dark.length, fw = wOk / T.white.length;
-    if (fd < 0.8 || fw < 0.8) return 0;
+    if (fd < 0.75 || fw < 0.75) return 0;
     const dk = dSum / T.dark.length, wt = wSum / T.white.length;
-    if (wt - dk < 40) return 0;
+    if (wt - dk < 22 || dk > wt * 0.8) return 0;
     return fd + fw + (wt - dk) / 255;
   }
 
@@ -260,5 +380,5 @@
     }).join('').replace(/^$/, '');
   }
 
-  window.OMR = { _findBlobs: findBlobs, toGray, detectSheet, readSheet, decide, decodeId, project, MARK };
+  window.OMR = { _findBlobs: findBlobs, _findMarkers: findMarkers, _meanMap: meanMap, _validate: validate, _homography: homography, toGray, detectSheet, readSheet, decide, decodeId, project, MARK };
 })();
