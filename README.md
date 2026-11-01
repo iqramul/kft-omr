@@ -3,14 +3,10 @@
 Static web app (no build step). Scans the KFT Collegiate School 40-question OMR sheet with the phone camera and shows the result live.
 
 ## Deploy to Vercel
-**Option 1 (drag & drop):** vercel.com → Add New → Project → upload this folder. Framework preset: **Other**, no build command, output directory: `.`
+This repo is connected to Vercel: every push to `main` deploys automatically.
 
-**Option 2 (CLI):**
-```bash
-npm i -g vercel
-cd omr-scanner
-vercel --prod
-```
+First-time setup: vercel.com/new → Import this GitHub repo → Framework Preset **Other**, no build command, output directory `./` → Deploy.
+
 Camera only works over HTTPS (Vercel gives HTTPS automatically).
 
 ## Use
