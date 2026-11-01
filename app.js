@@ -130,17 +130,15 @@
   $$('.set').forEach(b => b.addEventListener('click', () => {
     store.activeSet = b.dataset.set; save(); renderSets();
     if (currentView === 'setup') renderKeyGrid();
-    else { smooth = null; stableCount = 0; updateScanHeader(); if (frozen) redrawFrozen(); }
+    else { updateScanHeader(); if (frozen && lastSheet) showFrozenResult(); }
   }));
   $('#btn-go-scan').addEventListener('click', () => show('scan'));
 
   // ---------------- scanning ----------------
   const video = $('#video'), canvas = $('#canvas'), ctx = canvas.getContext('2d', { willReadFrequently: true });
-  let stream = null, rafId = 0, frozen = false, lastProc = 0, missCount = 0;
-  let smooth = null;          // smoothed fills {q, id}
+  let stream = null, rafId = 0, frozen = false, lastProc = 0;
   let lastSheet = null;       // {H, corners, geom, result}
   let frozenImage = null;     // ImageData of frozen frame
-  let stableCount = 0, lastSig = '';
   const PROC_LONG = 1400;
 
   function updateScanHeader() {
@@ -210,48 +208,62 @@
     processFrame(img, true);
   }
 
+  // live: only look for the sheet; freeze as soon as it is found and held steady.
+  let steady = 0, prevCorners = null, accum = null;
   function processFrame(img, live) {
     const { width: w, height: h } = img;
     const g = OMR.toGray(img);
     const sheet = OMR.detectSheet(g, w, h);
     if (!sheet) {
-      missCount++;
-      if (missCount > 8) { smooth = null; stableCount = 0; lastSheet = null; }
-      if (lastSheet && live && missCount <= 3) drawOverlay(lastSheet); // brief hold to avoid flicker
-      setStatus(live ? 'শিট খোঁজা হচ্ছে…' : 'শিট পাওয়া যায়নি', live ? '' : 'warn');
-      $('#frame-guide').classList.remove('hide');
-      if (!live) { $('#btn-save').disabled = true; }
+      if (live) {
+        steady = 0; prevCorners = null; accum = null;
+        setStatus('শিট খোঁজা হচ্ছে…', '');
+        $('#frame-guide').classList.remove('hide');
+      } else {
+        setStatus('শিট পাওয়া যায়নি — নতুন ক্যাপচার দিন', 'warn');
+        $('#btn-save').disabled = true;
+      }
       return null;
     }
-    missCount = 0;
     $('#frame-guide').classList.add('hide');
     const raw = OMR.readSheet(g, w, h, sheet.H);
     const fq = raw.q.map(r => r.map(b => b.fill)), fid = raw.id.map(c => c.map(b => b.fill));
-    if (live && smooth) {
-      const a = 0.55;
-      smooth.q = smooth.q.map((r, i) => r.map((v, j) => v * (1 - a) + fq[i][j] * a));
-      smooth.id = smooth.id.map((c, i) => c.map((v, j) => v * (1 - a) + fid[i][j] * a));
-    } else smooth = { q: fq, id: fid };
-    lastSheet = { corners: sheet.corners, geom: raw, fills: { q: smooth.q.map(r => r.slice()), id: smooth.id.map(c => c.slice()) } };
-    lastSheet.result = evaluate(lastSheet.fills);
-    drawOverlay(lastSheet);
-    updateScore(lastSheet.result);
 
-    const sig = lastSheet.result.answers.join('') + '|' + lastSheet.result.roll;
-    if (sig === lastSig) stableCount++; else { stableCount = 0; lastSig = sig; }
-    if (live && stableCount >= 4) {
-      // auto capture: keep this exact frame and show the result on it
-      autoCapture(img);
+    if (live) {
+      // how much did the sheet move since the previous frame?
+      const size = Math.hypot(sheet.corners[0][0] - sheet.corners[2][0], sheet.corners[0][1] - sheet.corners[2][1]);
+      const moved = prevCorners ? Math.max(...sheet.corners.map((p, i) => Math.hypot(p[0] - prevCorners[i][0], p[1] - prevCorners[i][1]))) / size : 1;
+      prevCorners = sheet.corners;
+      if (moved < 0.025) steady++; else { steady = 0; accum = null; }
+      if (!accum) accum = { n: 0, q: fq.map(r => r.map(() => 0)), id: fid.map(c => c.map(() => 0)) };
+      accum.n++;
+      fq.forEach((r, i) => r.forEach((v, j) => accum.q[i][j] += v));
+      fid.forEach((c, i) => c.forEach((v, j) => accum.id[i][j] += v));
+      // outline only while live
+      ctx.save(); ctx.lineWidth = Math.max(3, w / 300); ctx.strokeStyle = '#22c55e';
+      ctx.beginPath(); sheet.corners.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.stroke(); ctx.restore();
+      setStatus('শিট পাওয়া গেছে… স্থির রাখুন', '');
+      if (steady >= 2) {
+        const n = accum.n;
+        const fills = { q: accum.q.map(r => r.map(v => v / n)), id: accum.id.map(c => c.map(v => v / n)) };
+        lastSheet = { corners: sheet.corners, geom: raw, fills };
+        autoCapture(img);
+      }
       return lastSheet;
     }
-    if (live) {
-      setStatus('শিট পাওয়া গেছে… নড়াবেন না', '');
-      $('#btn-save').disabled = true;
-    } else {
-      setStatus('ক্যাপচার হয়েছে ✓', 'ok');
-      $('#btn-save').disabled = false;
-    }
+
+    lastSheet = { corners: sheet.corners, geom: raw, fills: { q: fq, id: fid } };
+    showFrozenResult();
     return lastSheet;
+  }
+
+  function showFrozenResult() {
+    ctx.putImageData(frozenImage, 0, 0);
+    lastSheet.result = evaluate(lastSheet.fills);
+    drawOverlay(lastSheet); updateScore(lastSheet.result);
+    setStatus('ক্যাপচার হয়েছে ✓', 'ok');
+    $('#btn-save').disabled = false;
+    $('#btn-new').textContent = '📷 নতুন ক্যাপচার';
   }
 
   function autoCapture(img) {
@@ -260,17 +272,27 @@
     cancelAnimationFrame(rafId); rafId = 0;
     if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
     torchOn = false;
-    redrawFrozen();
-    setStatus('ক্যাপচার হয়েছে ✓', 'ok');
-    $('#btn-save').disabled = false;
+    showFrozenResult();
     if (navigator.vibrate) navigator.vibrate([40, 40, 40]);
   }
 
+  // manual capture while live (fallback if auto-detect is slow)
+  function captureNow() {
+    if (!video.videoWidth) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    frozen = true; frozenImage = img;
+    stopCamera();
+    $('#btn-new').textContent = '📷 নতুন ক্যাপচার';
+    processFrame(img, false);
+  }
+
   function newCapture() {
-    frozen = false; frozenImage = null; smooth = null; lastSheet = null;
-    stableCount = 0; lastSig = ''; missCount = 0;
+    frozen = false; frozenImage = null; lastSheet = null;
+    steady = 0; prevCorners = null; accum = null;
     resetScore();
     $('#btn-save').disabled = true;
+    $('#btn-new').textContent = '📸 এখনই ক্যাপচার';
     setStatus('শিট খোঁজা হচ্ছে…', '');
     startCamera();
   }
@@ -333,16 +355,7 @@
     $('#score-num').textContent = '–'; $('#st-roll').textContent = '—';
   }
 
-  function redrawFrozen() {
-    if (!frozenImage) return;
-    ctx.putImageData(frozenImage, 0, 0);
-    if (lastSheet) {
-      lastSheet.result = evaluate(lastSheet.fills);
-      drawOverlay(lastSheet); updateScore(lastSheet.result);
-    }
-  }
-
-  $('#btn-new').addEventListener('click', newCapture);
+  $('#btn-new').addEventListener('click', () => (frozen ? newCapture() : captureNow()));
 
   $('#file-input').addEventListener('change', (ev) => {
     const f = ev.target.files[0]; if (!f) return;
@@ -353,7 +366,7 @@
       canvas.width = Math.round(im.width * sc); canvas.height = Math.round(im.height * sc);
       ctx.drawImage(im, 0, 0, canvas.width, canvas.height);
       frozenImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      smooth = null;
+      $('#btn-new').textContent = '📷 নতুন ক্যাপচার';
       const r = processFrame(frozenImage, false);
       if (!r) toast('শিটের ৪ কোণার মার্কার পাওয়া যায়নি — আরেকটি ছবি দিন');
       URL.revokeObjectURL(im.src);
@@ -380,7 +393,7 @@
     save();
     toast(`সেভ হয়েছে — আইডি ${roll || '—'}: ${r.score}/${r.total}`);
     if (navigator.vibrate) navigator.vibrate(60);
-    $('#btn-save').disabled = true; stableCount = -6; // avoid instant double-save
+    $('#btn-save').disabled = true; // avoid double-save
   });
 
   // ---------------- results ----------------

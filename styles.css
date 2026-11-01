@@ -156,3 +156,4 @@ table.results { width: 100%; border-collapse: collapse; font-size: 14px; }
 .btn.capture { background: #0b1220; border-color: #0b1220; color: #fff; }
 .scan-actions .btn.grow { padding: 14px 12px; font-size: 15px; }
 .scan-actions.secondary { margin-top: 8px; justify-content: center; }
+.legend .ver { opacity: .5; margin-right: 6px; }
