@@ -7,12 +7,14 @@
   <meta name="description" content="OMR Scanner by Iqram Sir — KFT Collegiate School" />
   <title>OMR Scanner by Iqram Sir</title>
   <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <div class="logo">OMR</div>
+      <img class="logo" src="logo.png" alt="KFT Collegiate School" width="40" height="40" />
       <div>
         <div class="brand-title">OMR Scanner <span class="by">by Iqram Sir</span></div>
         <div class="brand-sub">KFT Collegiate School</div>
@@ -70,10 +72,6 @@
         <button class="set" data-set="C">C</button>
         <button class="set" data-set="D">D</button>
       </div>
-      <label class="field">
-        <span>দ্রুত টাইপ করুন (যেমন: ABCDDCBA… ফাঁকা রাখতে - দিন)</span>
-        <input id="key-text" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABCD..." />
-      </label>
       <div id="key-grid" class="key-grid"></div>
       <div class="row gap">
         <button id="btn-copy-key" class="btn ghost small">অন্য সেট থেকে কপি</button>
@@ -129,7 +127,7 @@
       <label class="btn ghost small">🖼 গ্যালারি থেকে ছবি<input id="file-input" type="file" accept="image/*" hidden /></label>
     </div>
     <p class="legend">
-      <span class="ver">v1.4</span>
+      <span class="ver">v1.5</span>
       <span class="lg dot green"></span> সঠিক উত্তর দাগানো
       <span class="lg dot red"></span> ভুল দাগানো
       <span class="lg ring green"></span> সঠিক উত্তর ছিল এটি

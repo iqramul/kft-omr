@@ -55,7 +55,6 @@
   function renderSets() {
     $$('.set').forEach(b => b.classList.toggle('active', b.dataset.set === store.activeSet));
   }
-  function keyToText(arr, n) { return arr.slice(0, n).map(x => x || '-').join('').replace(/-+$/, ''); }
   function renderKeyGrid() {
     const e = exam(), key = e.keys[store.activeSet], grid = $('#key-grid');
     grid.innerHTML = '';
@@ -65,10 +64,21 @@
         LETTERS.map(L => `<button class="opt${key[i] === L ? ' on' : ''}" data-q="${i}" data-l="${L}">${L}</button>`).join('');
       grid.appendChild(row);
     }
-    $('#key-text').value = keyToText(key, e.numQ);
+    layoutKeyGrid();
     const done = key.slice(0, e.numQ).filter(Boolean).length;
     $('#key-progress').textContent = `সেট ${store.activeSet}: ${done}/${e.numQ}`;
   }
+  // column-wise numbering: 1,2,3… go down a column, then continue in the next one
+  function layoutKeyGrid() {
+    const grid = $('#key-grid'); if (!grid) return;
+    const n = exam().numQ;
+    const width = grid.clientWidth || window.innerWidth;
+    const cols = width >= 640 ? 4 : 2;
+    grid.style.gridTemplateColumns = `repeat(${cols}, max-content)`;
+    grid.style.gridTemplateRows = `repeat(${Math.ceil(n / cols)}, auto)`;
+  }
+  window.addEventListener('resize', layoutKeyGrid);
+
   function renderSetup() {
     const e = exam();
     renderExamSelect(); renderSets();
@@ -84,18 +94,6 @@
     const key = exam().keys[store.activeSet], i = +b.dataset.q;
     key[i] = key[i] === b.dataset.l ? '' : b.dataset.l;
     save(); renderKeyGrid();
-  });
-  $('#key-text').addEventListener('input', (ev) => {
-    const e = exam(), key = e.keys[store.activeSet];
-    const txt = ev.target.value.toUpperCase().replace(/[^ABCD\-_. ]/g, '');
-    for (let i = 0; i < MAXQ; i++) {
-      const c = txt[i]; key[i] = (c && 'ABCD'.includes(c)) ? c : '';
-    }
-    save();
-    // update grid without resetting the cursor of the text input
-    $$('#key-grid .opt').forEach(b => b.classList.toggle('on', key[+b.dataset.q] === b.dataset.l));
-    const done = key.slice(0, e.numQ).filter(Boolean).length;
-    $('#key-progress').textContent = `সেট ${store.activeSet}: ${done}/${e.numQ}`;
   });
   $('#exam-select').addEventListener('change', (ev) => { store.activeExam = ev.target.value; save(); renderSetup(); });
   $('#subject-name').addEventListener('input', (ev) => { exam().subject = ev.target.value.trim(); save(); renderExamSelect(); });
