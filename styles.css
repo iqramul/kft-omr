@@ -151,3 +151,8 @@ table.results { width: 100%; border-collapse: collapse; font-size: 14px; }
   .key-grid { grid-template-columns: 1fr 1fr; }
   .key-row .opt { width: 26px; height: 26px; }
 }
+
+.brand-title .by { font-weight: 500; font-size: 13px; opacity: .85; }
+.btn.capture { background: #0b1220; border-color: #0b1220; color: #fff; }
+.scan-actions .btn.grow { padding: 14px 12px; font-size: 15px; }
+.scan-actions.secondary { margin-top: 8px; justify-content: center; }

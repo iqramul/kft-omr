@@ -176,7 +176,7 @@
         if (caps.focusMode && caps.focusMode.includes('continuous')) track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
         $('#btn-torch').hidden = !caps.torch;
       } catch (e) {}
-      frozen = false; $('#btn-freeze').textContent = '⏸ থামান';
+      frozen = false;
       $('#frame-guide').classList.remove('hide');
       loop();
     } catch (err) {
@@ -239,10 +239,40 @@
 
     const sig = lastSheet.result.answers.join('') + '|' + lastSheet.result.roll;
     if (sig === lastSig) stableCount++; else { stableCount = 0; lastSig = sig; }
-    const stable = !live || stableCount >= 4;
-    setStatus(stable ? 'রেজাল্ট স্থির ✓' : 'পড়া হচ্ছে… নড়াবেন না', stable ? 'ok' : '');
-    $('#btn-save').disabled = !stable;
+    if (live && stableCount >= 4) {
+      // auto capture: keep this exact frame and show the result on it
+      autoCapture(img);
+      return lastSheet;
+    }
+    if (live) {
+      setStatus('শিট পাওয়া গেছে… নড়াবেন না', '');
+      $('#btn-save').disabled = true;
+    } else {
+      setStatus('ক্যাপচার হয়েছে ✓', 'ok');
+      $('#btn-save').disabled = false;
+    }
     return lastSheet;
+  }
+
+  function autoCapture(img) {
+    frozen = true;
+    frozenImage = img;
+    cancelAnimationFrame(rafId); rafId = 0;
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    torchOn = false;
+    redrawFrozen();
+    setStatus('ক্যাপচার হয়েছে ✓', 'ok');
+    $('#btn-save').disabled = false;
+    if (navigator.vibrate) navigator.vibrate([40, 40, 40]);
+  }
+
+  function newCapture() {
+    frozen = false; frozenImage = null; smooth = null; lastSheet = null;
+    stableCount = 0; lastSig = ''; missCount = 0;
+    resetScore();
+    $('#btn-save').disabled = true;
+    setStatus('শিট খোঁজা হচ্ছে…', '');
+    startCamera();
   }
 
   function evaluate(fills) {
@@ -312,29 +342,13 @@
     }
   }
 
-  $('#btn-freeze').addEventListener('click', () => {
-    if (!frozen) {
-      frozen = true;
-      // capture the clean frame (redraw without overlay)
-      if (video.videoWidth) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        frozenImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        processFrame(frozenImage, false);
-      }
-      $('#btn-freeze').textContent = '▶ চালু করুন';
-      if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-    } else {
-      frozen = false; frozenImage = null; smooth = null; stableCount = 0; resetScore();
-      $('#btn-freeze').textContent = '⏸ থামান';
-      startCamera();
-    }
-  });
+  $('#btn-new').addEventListener('click', newCapture);
 
   $('#file-input').addEventListener('change', (ev) => {
     const f = ev.target.files[0]; if (!f) return;
     const im = new Image();
     im.onload = () => {
-      stopCamera(); frozen = true; $('#btn-freeze').textContent = '▶ ক্যামেরা';
+      stopCamera(); frozen = true;
       const sc = Math.min(1, 1800 / Math.max(im.width, im.height));
       canvas.width = Math.round(im.width * sc); canvas.height = Math.round(im.height * sc);
       ctx.drawImage(im, 0, 0, canvas.width, canvas.height);
