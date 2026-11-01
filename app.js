@@ -140,6 +140,8 @@
   let lastSheet = null;       // {H, corners, geom, result}
   let frozenImage = null;     // ImageData of frozen frame
   const PROC_LONG = 1400;
+  const WARMUP_MS = 1500;   // delay before auto-detect starts
+  let scanStartAt = 0;
 
   function updateScanHeader() {
     const e = exam();
@@ -176,6 +178,7 @@
       } catch (e) {}
       frozen = false;
       $('#frame-guide').classList.remove('hide');
+      scanStartAt = performance.now() + WARMUP_MS;
       loop();
     } catch (err) {
       setStatus('ক্যামেরা অনুমতি পাওয়া যায়নি', 'warn');
@@ -204,6 +207,12 @@
     const w = Math.round(vw * sc), h = Math.round(vh * sc);
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
     ctx.drawImage(video, 0, 0, w, h);
+    // short warm-up so the user can aim the camera before detection starts
+    const left = scanStartAt - performance.now();
+    if (left > 0) {
+      setStatus(`ক্যামেরা শিটের উপর ধরুন… ${Math.ceil(left / 1000)}`, '');
+      return;
+    }
     const img = ctx.getImageData(0, 0, w, h);
     processFrame(img, true);
   }
