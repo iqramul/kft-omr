@@ -1,0 +1,9 @@
+{
+  "name": "OMR Scanner",
+  "short_name": "OMR",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f6fb",
+  "theme_color": "#0f3d8c",
+  "icons": []
+}

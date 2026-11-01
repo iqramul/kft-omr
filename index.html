@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f3d8c" />
+  <title>OMR Scanner — KFT Collegiate School</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">OMR</div>
+      <div>
+        <div class="brand-title">OMR Scanner</div>
+        <div class="brand-sub">KFT Collegiate School</div>
+      </div>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-view="setup">সেটআপ</button>
+      <button class="tab" data-view="scan">স্ক্যান</button>
+      <button class="tab" data-view="results">রেজাল্ট</button>
+    </nav>
+  </header>
+
+  <!-- ================= SETUP ================= -->
+  <main id="view-setup" class="view active">
+    <section class="card">
+      <div class="row between">
+        <h2>পরীক্ষা / বিষয়</h2>
+        <button id="btn-new-exam" class="btn ghost small">+ নতুন বিষয়</button>
+      </div>
+      <label class="field">
+        <span>বিষয় নির্বাচন</span>
+        <select id="exam-select"></select>
+      </label>
+      <div class="grid2">
+        <label class="field">
+          <span>বিষয়ের নাম</span>
+          <input id="subject-name" type="text" placeholder="যেমন: Physics" />
+        </label>
+        <label class="field">
+          <span>প্রশ্ন সংখ্যা</span>
+          <input id="num-q" type="number" min="1" max="40" value="40" inputmode="numeric" />
+        </label>
+      </div>
+      <div class="grid2">
+        <label class="field">
+          <span>প্রতি সঠিক উত্তরে নম্বর</span>
+          <input id="mark-right" type="number" step="0.25" value="1" inputmode="decimal" />
+        </label>
+        <label class="field">
+          <span>প্রতি ভুলে কাটা (নেগেটিভ)</span>
+          <input id="mark-wrong" type="number" step="0.25" value="0" min="0" inputmode="decimal" />
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row between">
+        <h2>উত্তরপত্র (Answer Key)</h2>
+        <span id="key-progress" class="pill"></span>
+      </div>
+      <div class="setbar" id="setup-setbar">
+        <span class="muted">সেট:</span>
+        <button class="set" data-set="A">A</button>
+        <button class="set" data-set="B">B</button>
+        <button class="set" data-set="C">C</button>
+        <button class="set" data-set="D">D</button>
+      </div>
+      <label class="field">
+        <span>দ্রুত টাইপ করুন (যেমন: ABCDDCBA… ফাঁকা রাখতে - দিন)</span>
+        <input id="key-text" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABCD..." />
+      </label>
+      <div id="key-grid" class="key-grid"></div>
+      <div class="row gap">
+        <button id="btn-copy-key" class="btn ghost small">অন্য সেট থেকে কপি</button>
+        <button id="btn-clear-key" class="btn ghost small danger">এই সেট মুছুন</button>
+      </div>
+    </section>
+
+    <div class="row gap sticky-actions">
+      <button id="btn-delete-exam" class="btn ghost danger">বিষয় মুছুন</button>
+      <button id="btn-go-scan" class="btn primary grow">স্ক্যান শুরু করুন →</button>
+    </div>
+  </main>
+
+  <!-- ================= SCAN ================= -->
+  <main id="view-scan" class="view">
+    <div class="scan-head">
+      <div>
+        <div id="scan-subject" class="scan-subject">—</div>
+        <div class="muted small" id="scan-hint">ক্যামেরা চালু হচ্ছে…</div>
+      </div>
+      <div class="setbar compact" id="scan-setbar">
+        <button class="set" data-set="A">A</button>
+        <button class="set" data-set="B">B</button>
+        <button class="set" data-set="C">C</button>
+        <button class="set" data-set="D">D</button>
+      </div>
+    </div>
+
+    <div class="stage" id="stage">
+      <canvas id="canvas"></canvas>
+      <video id="video" playsinline muted></video>
+      <div class="frame-guide" id="frame-guide"><span></span><span></span><span></span><span></span></div>
+      <div class="status-chip" id="status-chip">খোঁজা হচ্ছে…</div>
+    </div>
+
+    <div class="scoreboard">
+      <div class="score-main">
+        <div class="score-num" id="score-num">–</div>
+        <div class="muted small" id="score-of">মার্কস</div>
+      </div>
+      <div class="score-stat ok"><b id="st-correct">0</b><span>সঠিক</span></div>
+      <div class="score-stat bad"><b id="st-wrong">0</b><span>ভুল</span></div>
+      <div class="score-stat"><b id="st-blank">0</b><span>ফাঁকা</span></div>
+      <div class="score-stat"><b id="st-roll">—</b><span>আইডি</span></div>
+    </div>
+
+    <div class="row gap scan-actions">
+      <button id="btn-freeze" class="btn ghost">⏸ থামান</button>
+      <button id="btn-torch" class="btn ghost" hidden>🔦</button>
+      <label class="btn ghost">🖼 ছবি<input id="file-input" type="file" accept="image/*" hidden /></label>
+      <button id="btn-save" class="btn primary grow" disabled>সেভ করুন</button>
+    </div>
+    <p class="legend">
+      <span class="lg dot green"></span> সঠিক উত্তর দাগানো
+      <span class="lg dot red"></span> ভুল দাগানো
+      <span class="lg ring green"></span> সঠিক উত্তর ছিল এটি
+    </p>
+  </main>
+
+  <!-- ================= RESULTS ================= -->
+  <main id="view-results" class="view">
+    <section class="card">
+      <div class="row between">
+        <h2 id="results-title">রেজাল্ট</h2>
+        <div class="row gap">
+          <button id="btn-export" class="btn ghost small">CSV ডাউনলোড</button>
+          <button id="btn-clear-results" class="btn ghost small danger">সব মুছুন</button>
+        </div>
+      </div>
+      <div id="results-summary" class="muted small"></div>
+      <div class="table-wrap">
+        <table class="results">
+          <thead><tr><th>#</th><th>আইডি</th><th>সেট</th><th>সঠিক</th><th>ভুল</th><th>ফাঁকা</th><th>মার্কস</th><th></th></tr></thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="template.js"></script>
+  <script src="omr.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
