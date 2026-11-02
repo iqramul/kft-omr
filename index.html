@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0f3d8c" />
-  <meta name="description" content="OMR Scanner by Iqram Sir — KFT Collegiate School" />
-  <title>OMR Scanner by Iqram Sir</title>
+  <meta name="description" content="OMR Scanner by Iqramul — KFT Collegiate School" />
+  <title>OMR Scanner by Iqramul</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
@@ -16,7 +16,7 @@
     <div class="brand">
       <img class="logo" src="logo.png" alt="KFT Collegiate School" width="40" height="40" />
       <div>
-        <div class="brand-title">OMR Scanner <span class="by">by Iqram Sir</span></div>
+        <div class="brand-title">OMR Scanner <span class="by">by Iqramul</span></div>
         <div class="brand-sub">KFT Collegiate School</div>
       </div>
     </div>
@@ -31,23 +31,34 @@
   <main id="view-setup" class="view active">
     <section class="card">
       <div class="row between">
-        <h2>পরীক্ষা / বিষয়</h2>
-        <button id="btn-new-exam" class="btn ghost small">+ নতুন বিষয়</button>
+        <h2>শ্রেণি ও বিষয়</h2>
+        <button id="btn-new-exam" class="btn ghost small">+ নতুন পরীক্ষা</button>
       </div>
       <label class="field">
-        <span>বিষয় নির্বাচন</span>
+        <span>সংরক্ষিত পরীক্ষা নির্বাচন</span>
         <select id="exam-select"></select>
       </label>
       <div class="grid2">
         <label class="field">
-          <span>বিষয়ের নাম</span>
-          <input id="subject-name" type="text" placeholder="যেমন: Physics" />
+          <span>শ্রেণি</span>
+          <select id="class-name">
+            <option value="">— শ্রেণি বাছুন —</option>
+            <option>প্লে</option><option>নার্সারি</option>
+            <option>১ম শ্রেণি</option><option>২য় শ্রেণি</option><option>৩য় শ্রেণি</option>
+            <option>৪র্থ শ্রেণি</option><option>৫ম শ্রেণি</option><option>৬ষ্ঠ শ্রেণি</option>
+            <option>৭ম শ্রেণি</option><option>৮ম শ্রেণি</option><option>৯ম শ্রেণি</option>
+            <option>১০ম শ্রেণি</option><option>একাদশ শ্রেণি</option><option>দ্বাদশ শ্রেণি</option>
+          </select>
         </label>
         <label class="field">
-          <span>প্রশ্ন সংখ্যা</span>
-          <input id="num-q" type="number" min="1" max="40" value="40" inputmode="numeric" />
+          <span>বিষয়</span>
+          <input id="subject-name" type="text" placeholder="যেমন: পদার্থবিজ্ঞান" />
         </label>
       </div>
+      <label class="field">
+        <span>প্রশ্ন সংখ্যা</span>
+        <input id="num-q" type="number" min="1" max="40" value="40" inputmode="numeric" />
+      </label>
       <div class="grid2">
         <label class="field">
           <span>প্রতি সঠিক উত্তরে নম্বর</span>
@@ -80,7 +91,7 @@
     </section>
 
     <div class="row gap sticky-actions">
-      <button id="btn-delete-exam" class="btn ghost danger">বিষয় মুছুন</button>
+      <button id="btn-delete-exam" class="btn ghost danger">পরীক্ষা মুছুন</button>
       <button id="btn-go-scan" class="btn primary grow">স্ক্যান শুরু করুন →</button>
     </div>
   </main>
@@ -127,7 +138,7 @@
       <label class="btn ghost small">🖼 গ্যালারি থেকে ছবি<input id="file-input" type="file" accept="image/*" hidden /></label>
     </div>
     <p class="legend">
-      <span class="ver">v1.5</span>
+      <span class="ver">v1.6</span>
       <span class="lg dot green"></span> সঠিক উত্তর দাগানো
       <span class="lg dot red"></span> ভুল দাগানো
       <span class="lg ring green"></span> সঠিক উত্তর ছিল এটি

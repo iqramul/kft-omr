@@ -7,8 +7,8 @@
 
   // ---------------- storage ----------------
   function blankKeys() { const k = {}; LETTERS.forEach(s => k[s] = Array(MAXQ).fill('')); return k; }
-  function newExam(subject) {
-    return { id: 'e' + Date.now().toString(36), subject: subject || '', numQ: 40, markRight: 1, markWrong: 0, keys: blankKeys(), results: [] };
+  function newExam(subject, cls) {
+    return { id: 'e' + Date.now().toString(36), cls: cls || '', subject: subject || '', numQ: 40, markRight: 1, markWrong: 0, keys: blankKeys(), results: [] };
   }
   function load() {
     try {
@@ -21,6 +21,11 @@
   let store = load();
   function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) {} }
   const exam = () => store.exams[store.activeExam];
+  // "৮ম শ্রেণি · গণিত"
+  function examLabel(e) {
+    const parts = [e.cls, e.subject].filter(Boolean);
+    return parts.length ? parts.join(' · ') : '(শ্রেণি/বিষয় দেওয়া নেই)';
+  }
 
   // ---------------- toast ----------------
   let toastT;
@@ -47,7 +52,7 @@
     sel.innerHTML = '';
     Object.values(store.exams).forEach(e => {
       const o = document.createElement('option');
-      o.value = e.id; o.textContent = e.subject || '(নাম নেই)';
+      o.value = e.id; o.textContent = examLabel(e);
       if (e.id === store.activeExam) o.selected = true;
       sel.appendChild(o);
     });
@@ -82,6 +87,7 @@
   function renderSetup() {
     const e = exam();
     renderExamSelect(); renderSets();
+    $('#class-name').value = e.cls || '';
     $('#subject-name').value = e.subject;
     $('#num-q').value = e.numQ;
     $('#mark-right').value = e.markRight;
@@ -96,6 +102,7 @@
     save(); renderKeyGrid();
   });
   $('#exam-select').addEventListener('change', (ev) => { store.activeExam = ev.target.value; save(); renderSetup(); });
+  $('#class-name').addEventListener('change', (ev) => { exam().cls = ev.target.value; save(); renderExamSelect(); });
   $('#subject-name').addEventListener('input', (ev) => { exam().subject = ev.target.value.trim(); save(); renderExamSelect(); });
   $('#num-q').addEventListener('change', (ev) => {
     exam().numQ = Math.max(1, Math.min(MAXQ, parseInt(ev.target.value) || MAXQ));
@@ -104,13 +111,16 @@
   $('#mark-right').addEventListener('change', (ev) => { exam().markRight = parseFloat(ev.target.value) || 0; save(); });
   $('#mark-wrong').addEventListener('change', (ev) => { exam().markWrong = Math.abs(parseFloat(ev.target.value) || 0); save(); });
   $('#btn-new-exam').addEventListener('click', () => {
-    const name = prompt('নতুন বিষয়ের নাম:'); if (name === null) return;
-    const e = newExam(name.trim()); store.exams[e.id] = e; store.activeExam = e.id; store.activeSet = 'A';
+    const cur = exam();
+    // keep the same class for convenience, ask for the subject on the form
+    const e = newExam('', cur.cls); store.exams[e.id] = e; store.activeExam = e.id; store.activeSet = 'A';
     save(); renderSetup();
+    $('#subject-name').focus();
+    toast('নতুন পরীক্ষা — শ্রেণি ও বিষয় লিখুন');
   });
   $('#btn-delete-exam').addEventListener('click', () => {
     const e = exam();
-    if (!confirm(`"${e.subject || 'এই বিষয়'}" এবং এর সব রেজাল্ট মুছে ফেলবেন?`)) return;
+    if (!confirm(`"${examLabel(e)}" এবং এর সব রেজাল্ট মুছে ফেলবেন?`)) return;
     delete store.exams[e.id];
     if (!Object.keys(store.exams).length) { const n = newExam(''); store.exams[n.id] = n; }
     store.activeExam = Object.keys(store.exams)[0]; save(); renderSetup();
@@ -144,7 +154,7 @@
   function updateScanHeader() {
     const e = exam();
     const n = e.keys[store.activeSet].slice(0, e.numQ).filter(Boolean).length;
-    $('#scan-subject').textContent = `${e.subject || '(নাম নেই)'} · সেট ${store.activeSet}`;
+    $('#scan-subject').textContent = `${examLabel(e)} · সেট ${store.activeSet}`;
     if (n === 0) setHint(`সেট ${store.activeSet} এর উত্তর সেট করা নেই — সেটআপে গিয়ে দিন`);
     else setHint(`পুরো শিট ফ্রেমে ধরুন — ৪ কোণার ছোট কালো বক্স যেন দেখা যায়`);
   }
@@ -387,7 +397,7 @@
   // ---------------- results ----------------
   function renderResults() {
     const e = exam();
-    $('#results-title').textContent = `রেজাল্ট — ${e.subject || '(নাম নেই)'}`;
+    $('#results-title').textContent = `রেজাল্ট — ${examLabel(e)}`;
     const body = $('#results-body'); body.innerHTML = '';
     const rows = e.results.slice().sort((a, b) => (a.roll || '').localeCompare(b.roll || '', undefined, { numeric: true }));
     rows.forEach((r, i) => {
@@ -411,11 +421,12 @@
   $('#btn-export').addEventListener('click', () => {
     const e = exam();
     const head = ['ID', 'Set', 'Correct', 'Wrong', 'Blank', 'Score', 'Total', 'Answers', 'Time'];
-    const lines = [head.join(',')].concat(e.results.map(r =>
+    const q = v => `"${String(v).replace(/"/g, '""')}"`;
+    const lines = [q('শ্রেণি') + ',' + q(e.cls || ''), q('বিষয়') + ',' + q(e.subject || ''), '', head.join(',')].concat(e.results.map(r =>
       [r.roll, r.set, r.correct, r.wrong, r.blank, r.score, r.total, r.answers, new Date(r.time).toLocaleString()].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')));
     const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `${(e.subject || 'omr').replace(/[^\w\-]+/g, '_')}_results.csv`; a.click();
+    a.download = `${([e.cls, e.subject].filter(Boolean).join('_') || 'omr').replace(/[\s\/\\:*?"<>|]+/g, '_')}_results.csv`; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
 
