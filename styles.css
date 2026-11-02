@@ -6,8 +6,10 @@
   --line: #dbe3ef;
   --brand: #0f3d8c;
   --brand-2: #1d5fd1;
-  --green: #16a34a;
-  --red: #dc2626;
+  --green: #00c853;
+  --red: #ff1744;
+  --neon-green: #39ff14;
+  --neon-red: #ff1744;
   --amber: #d97706;
   --radius: 14px;
   font-family: "Hind Siliguri", "Noto Sans Bengali", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -122,9 +124,9 @@ h2 { font-size: 16px; margin: 0; }
 .scan-actions { margin-top: 10px; flex-wrap: wrap; }
 .legend { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .lg { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: -6px; vertical-align: middle; }
-.lg.dot.green { background: var(--green); }
-.lg.dot.red { background: var(--red); }
-.lg.ring.green { border: 2px solid var(--green); }
+.lg.dot.green { background: var(--neon-green); box-shadow: 0 0 6px var(--neon-green); }
+.lg.dot.red { background: var(--neon-red); box-shadow: 0 0 6px var(--neon-red); }
+.lg.ring.green { border: 2px solid var(--neon-green); box-shadow: 0 0 6px var(--neon-green); }
 
 /* results */
 .table-wrap { overflow-x: auto; margin-top: 10px; }
@@ -152,3 +154,17 @@ table.results { width: 100%; border-collapse: collapse; font-size: 14px; }
 .scan-actions .btn.grow { padding: 14px 12px; font-size: 15px; }
 .scan-actions.secondary { margin-top: 8px; justify-content: center; }
 .legend .ver { opacity: .5; margin-right: 6px; }
+
+/* class / subject pickers at the very top */
+.pick-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.pick { display: block; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+.pick > span { display: block; font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+.pick select { width: 100%; border: 0; background: transparent; font-weight: 700; font-size: 15px; padding: 4px 0; color: var(--brand); outline: none; }
+.pick:focus-within { outline: 2px solid var(--brand-2); border-color: transparent; }
+.pick-hint { text-align: center; color: var(--muted); padding: 30px 10px; margin: 0; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.grid3 .field { margin-top: 10px; }
+.danger-zone { text-align: center; padding: 18px 0 28px; display: grid; gap: 6px; justify-items: center; }
+#btn-clear-data { border-color: #fecaca; }
+.score-stat.ok b { text-shadow: 0 0 10px rgba(57,255,20,.45); }
+.score-stat.bad b { text-shadow: 0 0 10px rgba(255,23,68,.35); }

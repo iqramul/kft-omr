@@ -5,26 +5,49 @@
   const MAXQ = 40;
   const STORE_KEY = 'omr-scanner-v1';
 
+  // ---------------- classes & subjects ----------------
+  const CLASSES = [
+    '6 Bangla Version', '6 English Version',
+    '7 Bangla Version', '7 English Version',
+    '8 Bangla Version', '8 English Version',
+  ];
+  [9, 10, 11, 12].forEach(n => CLASSES.push(`${n} Science Bangla`, `${n} Science English`, `${n} Business Bangla`));
+  const SUBJECTS = [
+    'Bangla 1st', 'Bangla 2nd', 'Mathematics', 'BGS', 'ICT', 'Religion', 'Science',
+    'Higher Math', 'Physics', 'Chemistry', 'Biology',
+    'Finance', 'Accounting', 'Business', 'Management', 'Agriculture',
+  ];
+
   // ---------------- storage ----------------
   function blankKeys() { const k = {}; LETTERS.forEach(s => k[s] = Array(MAXQ).fill('')); return k; }
-  function newExam(subject, cls) {
-    return { id: 'e' + Date.now().toString(36), cls: cls || '', subject: subject || '', numQ: 40, markRight: 1, markWrong: 0, keys: blankKeys(), results: [] };
+  function newExam(cls, subject) {
+    return { cls, subject, numQ: 40, markRight: 1, markWrong: 0, keys: blankKeys(), results: [] };
   }
+  const examKey = (cls, subject) => cls + '||' + subject;
   function load() {
-    try {
-      const s = JSON.parse(localStorage.getItem(STORE_KEY));
-      if (s && s.exams && Object.keys(s.exams).length) return s;
-    } catch (e) {}
-    const e = newExam('');
-    return { exams: { [e.id]: e }, activeExam: e.id, activeSet: 'A' };
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) {}
+    if (!s || typeof s !== 'object') s = {};
+    const exams = {};
+    // keep only exams that belong to a known class + subject (older free-text ones are dropped)
+    Object.values(s.exams || {}).forEach(e => {
+      if (e && CLASSES.includes(e.cls) && SUBJECTS.includes(e.subject)) exams[examKey(e.cls, e.subject)] = e;
+    });
+    return { exams, cls: s.cls || '', subject: s.subject || '', activeSet: s.activeSet || 'A' };
   }
   let store = load();
   function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) {} }
-  const exam = () => store.exams[store.activeExam];
-  // "৮ম শ্রেণি · গণিত"
+  const hasPick = () => !!(store.cls && store.subject);
+  // current exam for the selected class + subject (created on first use)
+  let placeholder = newExam('', '');
+  function exam() {
+    if (!hasPick()) return placeholder;
+    const k = examKey(store.cls, store.subject);
+    if (!store.exams[k]) store.exams[k] = newExam(store.cls, store.subject);
+    return store.exams[k];
+  }
   function examLabel(e) {
-    const parts = [e.cls, e.subject].filter(Boolean);
-    return parts.length ? parts.join(' · ') : '(শ্রেণি/বিষয় দেওয়া নেই)';
+    return e.cls && e.subject ? `${e.cls} · ${e.subject}` : 'শ্রেণি ও বিষয় বাছাই করা হয়নি';
   }
 
   // ---------------- toast ----------------
@@ -47,16 +70,12 @@
   $$('.tab').forEach(b => b.addEventListener('click', () => show(b.dataset.view)));
 
   // ---------------- setup ----------------
-  function renderExamSelect() {
-    const sel = $('#exam-select');
-    sel.innerHTML = '';
-    Object.values(store.exams).forEach(e => {
-      const o = document.createElement('option');
-      o.value = e.id; o.textContent = examLabel(e);
-      if (e.id === store.activeExam) o.selected = true;
-      sel.appendChild(o);
-    });
+  function fillSelect(sel, items, placeholderText, value) {
+    sel.innerHTML = `<option value="">${placeholderText}</option>` +
+      items.map(v => `<option${v === value ? ' selected' : ''}>${v}</option>`).join('');
   }
+  fillSelect($('#class-name'), CLASSES, '— শ্রেণি —', store.cls);
+  fillSelect($('#subject-name'), SUBJECTS, '— বিষয় —', store.subject);
   function renderSets() {
     $$('.set').forEach(b => b.classList.toggle('active', b.dataset.set === store.activeSet));
   }
@@ -85,10 +104,14 @@
   window.addEventListener('resize', layoutKeyGrid);
 
   function renderSetup() {
+    $('#class-name').value = store.cls;
+    $('#subject-name').value = store.subject;
+    const ok = hasPick();
+    $('#exam-body').hidden = !ok;
+    $('#pick-hint').hidden = ok;
+    if (!ok) return;
     const e = exam();
-    renderExamSelect(); renderSets();
-    $('#class-name').value = e.cls || '';
-    $('#subject-name').value = e.subject;
+    renderSets();
     $('#num-q').value = e.numQ;
     $('#mark-right').value = e.markRight;
     $('#mark-wrong').value = e.markWrong;
@@ -101,29 +124,23 @@
     key[i] = key[i] === b.dataset.l ? '' : b.dataset.l;
     save(); renderKeyGrid();
   });
-  $('#exam-select').addEventListener('change', (ev) => { store.activeExam = ev.target.value; save(); renderSetup(); });
-  $('#class-name').addEventListener('change', (ev) => { exam().cls = ev.target.value; save(); renderExamSelect(); });
-  $('#subject-name').addEventListener('input', (ev) => { exam().subject = ev.target.value.trim(); save(); renderExamSelect(); });
+  $('#class-name').addEventListener('change', (ev) => { store.cls = ev.target.value; save(); renderSetup(); });
+  $('#subject-name').addEventListener('change', (ev) => { store.subject = ev.target.value; save(); renderSetup(); });
   $('#num-q').addEventListener('change', (ev) => {
     exam().numQ = Math.max(1, Math.min(MAXQ, parseInt(ev.target.value) || MAXQ));
     ev.target.value = exam().numQ; save(); renderKeyGrid();
   });
   $('#mark-right').addEventListener('change', (ev) => { exam().markRight = parseFloat(ev.target.value) || 0; save(); });
   $('#mark-wrong').addEventListener('change', (ev) => { exam().markWrong = Math.abs(parseFloat(ev.target.value) || 0); save(); });
-  $('#btn-new-exam').addEventListener('click', () => {
-    const cur = exam();
-    // keep the same class for convenience, ask for the subject on the form
-    const e = newExam('', cur.cls); store.exams[e.id] = e; store.activeExam = e.id; store.activeSet = 'A';
-    save(); renderSetup();
-    $('#subject-name').focus();
-    toast('নতুন পরীক্ষা — শ্রেণি ও বিষয় লিখুন');
-  });
-  $('#btn-delete-exam').addEventListener('click', () => {
-    const e = exam();
-    if (!confirm(`"${examLabel(e)}" এবং এর সব রেজাল্ট মুছে ফেলবেন?`)) return;
-    delete store.exams[e.id];
-    if (!Object.keys(store.exams).length) { const n = newExam(''); store.exams[n.id] = n; }
-    store.activeExam = Object.keys(store.exams)[0]; save(); renderSetup();
+  $('#btn-clear-data').addEventListener('click', async () => {
+    if (!confirm('সব শ্রেণি/বিষয়ের উত্তরপত্র ও রেজাল্ট মুছে যাবে। নিশ্চিত?')) return;
+    stopCamera();
+    try { localStorage.clear(); sessionStorage.clear(); } catch (e) {}
+    try { if (window.caches) for (const k of await caches.keys()) await caches.delete(k); } catch (e) {}
+    try {
+      if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+    } catch (e) {}
+    location.replace(location.pathname + '?r=' + Date.now());
   });
   $('#btn-clear-key').addEventListener('click', () => {
     if (!confirm(`সেট ${store.activeSet} এর সব উত্তর মুছবেন?`)) return;
@@ -141,6 +158,8 @@
     else { updateScanHeader(); if (frozen && lastSheet) showFrozenResult(); }
   }));
   $('#btn-go-scan').addEventListener('click', () => show('scan'));
+  // reset placeholder edits if something slipped through
+  placeholder = newExam('', '');
 
   // ---------------- scanning ----------------
   const video = $('#video'), canvas = $('#canvas'), ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -155,7 +174,8 @@
     const e = exam();
     const n = e.keys[store.activeSet].slice(0, e.numQ).filter(Boolean).length;
     $('#scan-subject').textContent = `${examLabel(e)} · সেট ${store.activeSet}`;
-    if (n === 0) setHint(`সেট ${store.activeSet} এর উত্তর সেট করা নেই — সেটআপে গিয়ে দিন`);
+    if (!hasPick()) setHint('আগে সেটআপে শ্রেণি ও বিষয় বাছাই করুন');
+    else if (n === 0) setHint(`সেট ${store.activeSet} এর উত্তর সেট করা নেই — সেটআপে গিয়ে দিন`);
     else setHint(`পুরো শিট ফ্রেমে ধরুন — ৪ কোণার ছোট কালো বক্স যেন দেখা যায়`);
   }
   function setHint(t) { $('#scan-hint').textContent = t; }
@@ -316,29 +336,43 @@
     return { per, answers, correct, wrong, blank, counted, score, total: +(counted * e.markRight).toFixed(2), roll };
   }
 
+  const NEON_GREEN = '#39ff14', NEON_RED = '#ff1744', NEON_GLOW_G = 'rgba(57,255,20,.9)', NEON_GLOW_R = 'rgba(255,23,68,.9)';
   function drawOverlay(sheet) {
     const { geom, result, corners } = sheet;
-    // sheet outline
     ctx.save();
+    // sheet outline
     ctx.lineWidth = Math.max(2, canvas.width / 400);
-    ctx.strokeStyle = 'rgba(29,95,209,.85)';
+    ctx.strokeStyle = 'rgba(0,229,255,.9)'; ctx.shadowColor = 'rgba(0,229,255,.8)'; ctx.shadowBlur = 8;
     ctx.beginPath(); corners.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.stroke();
     result.per.forEach((p, i) => {
       if (p.status === 'nokey') {
-        p.marked.forEach(m => dot(geom.q[i][m], 'rgba(100,116,139,.85)'));
+        p.marked.forEach(m => dot(geom.q[i][m], '#94a3b8', 'rgba(148,163,184,.6)'));
         return;
       }
-      p.marked.forEach(m => dot(geom.q[i][m], (p.status === 'correct') ? 'rgba(22,163,74,.92)' : 'rgba(220,38,38,.92)'));
-      if (p.status !== 'correct') ring(geom.q[i][p.k], '#16a34a');
+      const ok = p.status === 'correct';
+      p.marked.forEach(m => dot(geom.q[i][m], ok ? NEON_GREEN : NEON_RED, ok ? NEON_GLOW_G : NEON_GLOW_R));
+      if (!ok) ring(geom.q[i][p.k]);
     });
     ctx.restore();
   }
-  function dot(b, color) {
-    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(b.x, b.y, b.R * 0.85, 0, Math.PI * 2); ctx.fill();
+  // glowing filled dot with a thin dark edge so it pops on white paper
+  function dot(b, color, glow) {
+    const r = b.R * 0.9;
+    ctx.shadowColor = glow; ctx.shadowBlur = Math.max(6, b.R * 1.2);
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = Math.max(1, b.R * 0.12); ctx.strokeStyle = 'rgba(0,0,0,.55)';
+    ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.stroke();
   }
-  function ring(b, color) {
-    ctx.strokeStyle = color; ctx.lineWidth = Math.max(2, b.R * 0.28);
-    ctx.beginPath(); ctx.arc(b.x, b.y, b.R * 1.12, 0, Math.PI * 2); ctx.stroke();
+  // glowing green outline ring (correct answer that was not marked)
+  function ring(b) {
+    const r = b.R * 1.15, lw = Math.max(2.5, b.R * 0.32);
+    ctx.shadowBlur = 0; ctx.lineWidth = lw + Math.max(2, b.R * 0.18); ctx.strokeStyle = 'rgba(0,0,0,.5)';
+    ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.shadowColor = NEON_GLOW_G; ctx.shadowBlur = Math.max(6, b.R * 1.2);
+    ctx.lineWidth = lw; ctx.strokeStyle = NEON_GREEN;
+    ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.shadowBlur = 0;
   }
   function updateScore(r) {
     $('#score-num').textContent = r.counted ? r.score : '–';
