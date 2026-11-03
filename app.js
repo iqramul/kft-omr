@@ -400,7 +400,7 @@
       frozenImage = ctx.getImageData(0, 0, canvas.width, canvas.height);
       $('#btn-new').textContent = '📷 নতুন ক্যাপচার';
       const r = processFrame(frozenImage, false);
-      if (!r) toast('শিটের ৪ কোণার মার্কার পাওয়া যায়নি — আরেকটি ছবি দিন');
+      if (!r) toast('শিট পাওয়া যায়নি — প্রশ্নের অংশ (১–৪০) পরিষ্কার দেখা যায় এমন ছবি দিন');
       URL.revokeObjectURL(im.src);
     };
     im.src = URL.createObjectURL(f);
