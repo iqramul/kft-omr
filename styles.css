@@ -153,7 +153,7 @@ table.results { width: 100%; border-collapse: collapse; font-size: 14px; }
 .btn.capture { background: #0b1220; border-color: #0b1220; color: #fff; }
 .scan-actions .btn.grow { padding: 14px 12px; font-size: 15px; }
 .scan-actions.secondary { margin-top: 8px; justify-content: center; }
-.legend .ver { opacity: .5; margin-right: 6px; }
+.ver-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; margin-left: 4px; border-radius: 99px; background: rgba(255,255,255,.18); vertical-align: 2px; }
 
 /* class / subject pickers at the very top */
 .pick-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
