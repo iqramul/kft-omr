@@ -176,7 +176,7 @@
     $('#scan-subject').textContent = `${examLabel(e)} · সেট ${store.activeSet}`;
     if (!hasPick()) setHint('আগে সেটআপে শ্রেণি ও বিষয় বাছাই করুন');
     else if (n === 0) setHint(`সেট ${store.activeSet} এর উত্তর সেট করা নেই — সেটআপে গিয়ে দিন`);
-    else setHint(`পুরো শিট ফ্রেমে ধরুন — ৪ কোণার ছোট কালো বক্স যেন দেখা যায়`);
+    else setHint(`শিটের প্রশ্নের অংশ (১–৪০ নম্বর) ফ্রেমে রাখুন`);
   }
   function setHint(t) { $('#scan-hint').textContent = t; }
   function setStatus(t, cls) { const c = $('#status-chip'); c.textContent = t; c.className = 'status-chip' + (cls ? ' ' + cls : ''); }
@@ -261,7 +261,7 @@
       return null;
     }
     $('#frame-guide').classList.add('hide');
-    const raw = OMR.readSheet(g, w, h, sheet.H);
+    const raw = OMR.readSheet(g, w, h, sheet.H, sheet);
     const fq = raw.q.map(r => r.map(b => b.fill)), fid = raw.id.map(c => c.map(b => b.fill));
 
     if (live) {
